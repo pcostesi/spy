@@ -42,7 +42,7 @@ class InvalidBytecodeException(Exception): pass
 class TagExistsException(Exception): pass
 
     
-def __validate_var_name(name):
+def _validate_var_name(name):
     var = name[0].lower()
     if var in ("x", "z") and name[1:].isdigit():
         num = int(name[1:])
@@ -53,7 +53,7 @@ def __validate_var_name(name):
     if var not in ("x", "z", "y") or num <= 0:
         raise InvalidVariableNameException("Variable %s is invalid" % name)
 
-def __validate_tag_name(name):
+def _validate_tag_name(name):
     var = name[0].lower()
     num = int(name[1:]) if name[1:].isdigit() else 0
     if var not in ("a", "b", "c", "d", "e") or num <= 0:
@@ -69,29 +69,46 @@ class State(object):
         self.iptr = 1
         self.vars = defaultdict(lambda: 0)
         for k, v in kwargs.iteritems():
-            __validate_var_name(k)
+            _validate_var_name(k)
             self.vars[k] = v
 
     def inc(self, var):
-        __validate_var_name(var)
+        _validate_var_name(var)
         self.vars[var.lower()] = self.vars[var.lower()] + 1
         return self.vars[var.lower()]
         
     def dec(self, var):
-        __validate_var_name(var)
+        _validate_var_name(var)
         val = max(self.vars[var.lower()] - 1, 0)
         self.vars[var.lower()] = val  
         return val
         
     def jnz(self, var):
-        __validate_var_name(var)
+        _validate_var_name(var)
         return self.vars[var.lower()] == 0
         
-        def __str__(self):
-            pairs = ("\t- %s:\t%s" % (k, v) for k, v in 
-                                        sorted(self.vars.iteritems()))
-            return "State:\n" + '\n'.join(pairs)
-
+    def __str__(self):
+        pairs = ("\t- %s:\t%s" % (k, v) for k, v in 
+                                    sorted(self.vars.iteritems()))
+        return "State:\n" + '\n'.join(pairs)
+        
+    def set(self, var, val):
+        _validate_var_name(var)
+        self.vars[var.lower()] = val
+        
+    def get(self, var):
+        _validate_var_name(var)
+        return self.vars[var.lower()]
+        
+    def update(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            _validate_var_name(k)
+            self.vars[k] = v
+            
+    def reset(self):
+        self.vars.clear()
+        self.iptr = 1
+        
 
 class BytecodeBase(object):
     """ This class contains generic data used by compilers and serializers       
@@ -100,22 +117,29 @@ class BytecodeBase(object):
                 - A 4-byte unsigned integer containing the Magic
                 - A 2-byte unsigned short major version
                 - A 2-byte unsigned short
+            * An Info _non-padded_ struct with:
+                - Number of instructions in DATA section (for serialized data)
+                - Number of instructions in EXEC section (the actual program)
+            * An _OPTIONAL_ DATA section of _non-padded_ structs with:
+                - VAR instructions
+                - *ONE* terminal JMP instruction.
             * Instruction _non-padded_ structs with:
                 - An unsigned char opcode
                 - A 2-byte signed short representing the variable:
                     . Positive for X
                     . 0 for y
                     . Negative for Z
-                - A 2-byte unsigned short representing the jump offset from
-                  the start of the Instruction section
+                - A 2-byte unsigned short with payload data:
+                    For JNZ: the tag index 
     """
 
     LAYOUT = ">IHH"
     INSTRUCTION = ">BhH" #instruction, variable, value
     MAGIC = 0x0005C0DE #u4
     MAJOR_VERSION = 0x0001 #u2
-    MINOR_VERSION = 0x0000 #u2
-    INC, DEC, JNZ, TAG, VAR = 1, 2, 3, 4, 5
+    MINOR_VERSION = 0x0001 #u2
+    INFO = ">II" # number of DATA instructions, number of EXEC instructions
+    INC, DEC, JNZ, TAG, VAR, JMP = 1, 2, 3, 4, 5, 6
     HEADER = pack(LAYOUT, MAGIC, MAJOR_VERSION, MINOR_VERSION)
     
     @staticmethod
@@ -129,13 +153,16 @@ class BytecodeBase(object):
             
     @staticmethod
     def _var_to_int(var):
-        name, idx = var[0].lower(), int(var[1:]) & 0x7FFF
+        name, idx = var[0].lower(), var[1:]
         if name == "y":
             return 0
         elif name == "x":
-            return idx
+            return int(idx) & 0x7FFF
         else:
-            return -idx
+            return -1 * (int(idx) & 0x7FFF)
+            
+    def variables(self):
+        return self.vars.iteritems()
         
 
 class Bytecode(BytecodeBase):
@@ -143,35 +170,72 @@ class Bytecode(BytecodeBase):
     routines
     """
            
-    def __init__(self, instructions=None):
+    def __init__(self, instructions=None, state=None):
         self.program = instructions or []
+        self.binary = None
+        self.state = state or State()
         
     @staticmethod
-    def __parse_instr(f, offset):
+    def __parse_instr(f, offset, count):
+        f.seek(offset)
         INSTRUCTION_SIZE = calcsize(Bytecode.INSTRUCTION)
-        while f.closed == False:
+        instruction = 0
+        while f.closed == False and instruction < count:
             data = f.read(INSTRUCTION_SIZE)
             if len(data) < INSTRUCTION_SIZE:
                 raise InvalidBytecodeException("Invalid instruction size")
-            op, var, val = unpack_from(Bytecode.INSTRUCTION, f, offset)
-            offset += INSTRUCTION_SIZE
-            yield op, Bytecode._int_to_var(var), val
+            op, var, val = unpack_from(Bytecode.INSTRUCTION, data)
+            instruction += 1
+            yield op, var, val
 
-    def from_file(self, f, skip_opcodes=[BytecodeBase.VAR]):
+    def __read_bulk(self, f, offset, elems):
+        for op, var, val in Bytecode.__parse_instr(f, offset, elems):
+            self._add(op, var, val)
+        return offset + calcsize(Bytecode.INSTRUCTION) * elems
+
+    def from_file(self, f, ignore_state=True):
         LAYOUT_SIZE = calcsize(Bytecode.LAYOUT)
+        INFO_SIZE = calcsize(Bytecode.INFO)
         
-        magic, major, minor = unpack_from(Bytecode.LAYOUT, f)
+        header = f.read(LAYOUT_SIZE)
+        magic, major, minor = unpack_from(Bytecode.LAYOUT, header)
         if (magic != Bytecode.MAGIC or major != Bytecode.MAJOR_VERSION or
                         minor != Bytecode.MINOR_VERSION):
             raise InvalidBytecodeException("Invalid header")
-        self.program = [i for i in Bytecode.__parse_instr(f, LAYOUT_SIZE)
-                if i not in skip_opcodes]
         
-    def to_binary(self, skip_opcodes=[BytecodeBase.VAR]):
-        instructions = (i for i in self.program if i[0] not in skip_opcodes)
-        packed = (pack(Bytecode.INSTRUCTION, *i) for i in instructions)
-        return Bytecode.HEADER + ''.join(packed)
+        info = f.read(INFO_SIZE)            
+        variables, instructions = unpack_from(Bytecode.INFO, info)
+        offset = LAYOUT_SIZE + INFO_SIZE
+        offset = self.__read_bulk(f, offset, variables)
+        offset = self.__read_bulk(f, offset, instructions)
         
+    @staticmethod
+    def __pack(instructions):
+        for op, var, val in instructions:
+            yield pack(Bytecode.INSTRUCTION, op, var, val & 0xffff)
+            
+    def __state_as_instructions(self):
+        l = []
+        for var, val in self.state.variables():
+            l.append((Bytecode.VAR, Bytecode.__var_to_int(var), val))
+        l.append((Bytecode.JMP, 0, self.state.iptr))
+        return l
+    
+    def to_binary(self, save_state=False):
+        state = self.__state_as_instructions() if save_state else []
+        INFO = pack(Bytecode.INFO, len(state), len(self.program))
+        DATA = ''.join(Bytecode.__pack(state))
+        EXEC = ''.join(Bytecode.__pack(self.program))
+        return Bytecode.HEADER + INFO + DATA + EXEC
+        
+    def _add(self, op, var, val):
+        self.binary = None
+        if op in (Bytecode.VAR, Bytecode.JMP):
+            var = Bytecode.__int_to_var(var)
+            self.state.set(var, val)
+        else:
+            self.program.append((op, var, val))
+           
 
 class Compiler(BytecodeBase):
     def __init__(self):
@@ -179,70 +243,118 @@ class Compiler(BytecodeBase):
         self.tags = {}
 
     def tag(self, name):
-        __validate_tag_name(name)
+        _validate_tag_name(name)
         name = name.lower()
         if name not in self.tags:
-            self.tags[name] = len(self.program) #tag the NEXT line.
-            self.program.append((Compiler.TAG, 0, name))
+            # tags are no-op opcodes, so we can ignore them
+            # however, adding tags is recommended for debugging and decompiling
+            self.tags[name] = len(self.program) - 1 #tag this line.
+            cname = Compiler._int_to_var((ord("a") + 1 - ord(name[0])))
+            self.program.append((Compiler.TAG, cname, int(name[1:])))
         else:
             raise TagExistsException("Tag %s already exists" % name)
+        return self
     
     def inc(self, var):
-        __validate_var_name(var)
-        self.program.append((Compiler.INC, var))
+        _validate_var_name(var)
+        self.program.append((Compiler.INC, var, 1))
+        return self
         
     def dec(self, var):
-        __validate_var_name(var)
-        self.program.append((Compiler.DEC, var))
+        _validate_var_name(var)
+        self.program.append((Compiler.DEC, var, 1))
+        return self
+        
+    def jmp(self, idx):
+        self.program.append((Compiler.JMP, "y", max(idx, 0)))
+        return self
         
     def jnz(self, var, tag):
-        __validate_var_name(var)
-        __validate_tag_name(tag)
+        _validate_var_name(var)
+        _validate_tag_name(tag)
         self.program.append((Compiler.JNZ, var, tag))
+        return self
         
-    def instructions(self, skip_opcodes=[BytecodeBase.VAR]):
-        program = (i for i in self.program if i not in skip_opcodes)
-
-        for instruction in program:
-            op, var = instruction[0], Compiler._var_to_int(instruction[1])
+    def __iter__(self):
+        for instruction in self.program:
+            op, var, val = instruction[:3]
             
-            if len(instruction) == 3:
+            if op == Compiler.JNZ:
                 val = self.tags.get(instruction[2], 0)
-            else:
-                val = 0
-            yield op, var, val
+            yield op, Compiler._var_to_int(var), val
         
-    def to_bytecode(self, skip_opcodes=[BytecodeBase.VAR]):
-        return Bytecode(list(self.instructions(skip_opcodes)))
+    def to_bytecode(self):
+        return Bytecode(list(self))
 
     def from_tokens(self, tokens):
-        pass
+        return self
+
 
 def preprocessor(f):
     pass
 
-def tokenize_file(f):
-    return [
-        (Bytecode.TAG, "a1"),
-        (Bytecode.INC, "x1"),
-        (Bytecode.DEC, "x1"),
-        (Bytecode.JNZ, "x1", "a1")
-    ]
 
+class VM(BytecodeBase):
 
-class VM(object):
-
-    def __init__(self, f, state=None):
-        self.state = state or State()
+    def __init__(self, bytecode=None):
+        self.bytecode = bytecode
     
     def step(self):
-        iptr = self.state.iptr
-
-    def execute(self):
-        pass
-                
-    def load(self, f):
-        pass
+        if bytecode is None:
+            return 0
+            
+        iptr = self.bytecode.state.iptr
+        if iptr <= 0 or iptr > len(self.bytecode.program):
+            return self.bytecode.state.get("y")
         
-    def save(self, f):
-        pass
+        op, var, val = self.bytecode.program[iptr - 1]
+        var = VM._int_to_var(var)
+        
+        if op == VM.JNZ:
+            if self.bytecode.state.jnz(var):
+                self.bytecode.state.iptr = val
+                return None
+        elif op == VM.JMP:
+            self.bytecode.state.iptr = val
+            return None
+        elif op == VM.VAR:
+            self.bytecode.state.set(var, val)
+        elif op == VM.INC:
+            self.bytecode.state.inc(var)
+        elif op == VM.DEC:
+            self.bytecode.state.dec(var)
+            
+        self.bytecode.state.iptr += 1 
+
+    def execute(self, **x):
+        y = None
+        self.bytecode.state.update(**x)
+        while y is None:
+            y = self.step()
+        return y
+        
+    def state(self):
+        return self.bytecode.state
+                
+    def load(self, f, load_state=False):
+        with open(f, "rb") as input_file:
+            self.bytecode = Bytecode()
+            bytecode.from_file(input_file, load_state)
+        return self
+        
+    def save(self, f, save_state=False):
+        with open(f, "wb") as output_file:
+            output_file.write(bytecode.to_binary())
+        return self
+        
+    def reset(self):
+        self.bytecode.state.reset()
+        return self
+        
+        
+compiler = Compiler()
+compiler.inc("y").inc("y").tag("a1").jnz("z1", "e1").tag("e2").inc("x1")
+bytecode = compiler.to_bytecode()
+vm = VM(bytecode)
+print vm.execute(x1=1, x2=2, x5=3)
+# My other interpreter is less than 100 lines long.
