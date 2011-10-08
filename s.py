@@ -378,16 +378,4 @@ class VM(BytecodeBase):
         self.bytecode.state.reset()
         return self
         
-        
-compiler = Compiler()
-compiler.inc("y").inc("y").tag("a1").jnz("z1", "e1").tag("e2").inc("x1")
-bytecode = compiler.to_bytecode()
-with open("/tmp/test.sbc", "wb") as f:
-    f.write(bytecode.to_binary())
-
-compiler = Compiler()
-with open("/home/pcostesi/test.s", "rb") as f:
-    compiler.from_file(f)
-vm = VM(bytecode)
-print vm.execute(x1=1, x2=2, x5=3)
 # My other interpreter is less than 100 lines long.
