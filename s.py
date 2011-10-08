@@ -74,23 +74,25 @@ class State(object):
     state manupulation (avoiding corruption).
     """
     
-    def __init__(self, y=0, **kwargs):
+    def __init__(self, y=0, *args, **kwargs):
         self.iptr = 1
         self.vars = defaultdict(lambda: 0)
+        for i, v in enumerate(args):
+            self.vars["x%d" % (i + 1)] = max(v, 0)
         for k, v in kwargs.iteritems():
             _validate_var_name(k)
-            self.vars[k] = v
+            self.vars[k] = max(v, 0)
 
-    def inc(self, var):
+    def inc(self, var, val=1):
         _validate_var_name(var)
-        self.vars[var.lower()] = self.vars[var.lower()] + 1
+        self.vars[var.lower()] = self.vars[var.lower()] + val
         return self.vars[var.lower()]
         
-    def dec(self, var):
+    def dec(self, var, val=1):
         _validate_var_name(var)
-        val = max(self.vars[var.lower()] - 1, 0)
-        self.vars[var.lower()] = val  
-        return val
+        res = max(self.vars[var.lower()] - val, 0)
+        self.vars[var.lower()] = res  
+        return res
         
     def jnz(self, var):
         _validate_var_name(var)
@@ -247,9 +249,11 @@ class Bytecode(BytecodeBase):
            
 
 class Compiler(BytecodeBase):
-    def __init__(self):
+    def __init__(self, f=None):
         self.program = []
         self.tags = {}
+        if f:
+            self.from_file(f)
 
     def tag(self, name):
         _validate_tag_name(name)
@@ -292,8 +296,8 @@ class Compiler(BytecodeBase):
                 val = self.tags.get(instruction[2], 0)
             yield op, Compiler._var_to_int(var), val
         
-    def to_bytecode(self):
-        return Bytecode(list(self))
+    def to_bytecode(self, state=None):
+        return Bytecode(list(self), state)
 
     @staticmethod
     def _extract(operations, line):
@@ -347,9 +351,9 @@ class VM(BytecodeBase):
         elif op == VM.VAR:
             self.bytecode.state.set(var, val)
         elif op == VM.INC:
-            self.bytecode.state.inc(var)
+            self.bytecode.state.inc(var, val)
         elif op == VM.DEC:
-            self.bytecode.state.dec(var)
+            self.bytecode.state.dec(var, val)
             
         self.bytecode.state.iptr += 1 
 
@@ -379,3 +383,16 @@ class VM(BytecodeBase):
         return self
         
 # My other interpreter is less than 100 lines long.
+
+if __name__ == "__main__":
+    import sys
+    
+    if len(sys.argv) > 1:
+        state = State(sys.argv[1:])
+    else:
+        state = None
+    
+    compiler = Compiler(sys.stdin)
+    bytecode = compiler.to_bytecode(state)
+    vm = VM(bytecode)
+    print vm.execute()
