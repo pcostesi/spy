@@ -35,6 +35,15 @@
 
 from collections import defaultdict
 from struct import pack, unpack_from, calcsize
+import re
+
+TAG = r"\s*(\[\s*(?P<tag>[a-eA-E]\d+)\s*\])?\s*"
+NXT = r"(?P<nxt>[a-eA-E]\d+)"
+VAR = r"([XZ]\d+)|Y"
+ADD = re.compile(TAG + "(?P<var>" + VAR + r")\s*<-\s*(" + VAR + r")\s*\+\s*1")
+REM = re.compile(TAG + "(?P<var>" + VAR + r")\s*<-\s*(" + VAR + r")\s*-\*1")
+JNZ = re.compile(TAG + r"IF\s+(?P<var>" + VAR + r")\s*!=\s*0\s*GOTO\s*" + NXT)
+
 
 class InvalidVariableNameException(Exception): pass
 class InvalidTagNameException(Exception): pass
@@ -286,9 +295,27 @@ class Compiler(BytecodeBase):
     def to_bytecode(self):
         return Bytecode(list(self))
 
-    def from_tokens(self, tokens):
-        return self
+    @staticmethod
+    def _extract(operations, line):
+        for operation, v in operations.iteritems():
+            statement = re.match(operation, line)
+            if statement:
+                d = statement.groupdict()
+                return d.get('tag', None), v, d['var'], d.get('nxt', None)
 
+    def from_file(self, f):
+        ops = {REM: Compiler.DEC, ADD: Compiler.INC, JNZ: Compiler.JNZ}
+        for line in f:
+            tag, op, var, nxt = Compiler._extract(ops, line)
+            if tag:
+                self.tag(tag)
+            if op == Compiler.INC:
+                self.inc(var)
+            elif op == Compiler.DEC:
+                self.dec(var)
+            elif op == Compiler.JNZ:
+                self.jnz(var, nxt)
+                
 
 def preprocessor(f):
     pass
@@ -355,6 +382,12 @@ class VM(BytecodeBase):
 compiler = Compiler()
 compiler.inc("y").inc("y").tag("a1").jnz("z1", "e1").tag("e2").inc("x1")
 bytecode = compiler.to_bytecode()
+with open("/tmp/test.sbc", "wb") as f:
+    f.write(bytecode.to_binary())
+
+compiler = Compiler()
+with open("/home/pcostesi/test.s", "rb") as f:
+    compiler.from_file(f)
 vm = VM(bytecode)
 print vm.execute(x1=1, x2=2, x5=3)
 # My other interpreter is less than 100 lines long.
