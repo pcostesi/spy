@@ -422,6 +422,7 @@ class Compiler(BytecodeBase):
             if statement:
                 d = statement.groupdict()
                 return d.get('tag', None), v, d['var'], d.get('nxt', None)
+        return None, None, None, None
 
     def from_file(self, f):
         """ Compiles a file """
@@ -430,7 +431,9 @@ class Compiler(BytecodeBase):
             tag, op, var, nxt = Compiler._extract(ops, line)
             if tag:
                 self.tag(tag)
-            if op == Compiler.INC:
+            if op is None:
+                continue
+            elif op == Compiler.INC:
                 self.inc(var)
             elif op == Compiler.DEC:
                 self.dec(var)
@@ -457,7 +460,6 @@ class VM(BytecodeBase):
         
         op, var, val = self.bytecode.program[iptr - 1]
         var = VM._int_to_var(var)
-        
         if op == VM.JNZ:
             if self.bytecode.state.jnz(var):
                 self.bytecode.state.iptr = val
