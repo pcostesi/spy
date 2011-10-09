@@ -122,26 +122,138 @@ class State(object):
         
 
 class BytecodeBase(object):
-    """ This class contains generic data used by compilers and serializers       
+    """ This class contains generic data used by compilers and serializers.
+    
+    S bytecode has been designed with portability and ease of implementation
+    even in low-level languages. It is a big-endian binary file that stores
+    both the program and optionally a snapshot.
+    
+    
+    Layout
+    ======
+    
+    Fig. 1: A minimal bytecode layout
+     ____ __ __    ____ ____    _ __ __     _ __ __    _ __ __     _ __ __
+    |____|__|__|  |____|____|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
+     MAGI MA MI    DATA EXEC     VAR 1        JMP       INST 1     INST N
+    \__________/  \_________/  \___________________/  \___________________/
+       HEADER         INFO          DATA Section           EXEC Section
+    \_______________________/  \__________________________________________/
+            Metadata                           Instructions
+         
         S bytecode is big-endian and has the following layout:
             * A Header _non-padded_ struct with:
                 - A 4-byte unsigned integer containing the Magic
                 - A 2-byte unsigned short major version
                 - A 2-byte unsigned short
+                
             * An Info _non-padded_ struct with:
                 - Number of instructions in DATA section (for serialized data)
+                  as a 4-byte unsigned integer.
                 - Number of instructions in EXEC section (the actual program)
+                  as a 4-byte unsigned integer.
+                  
             * An _OPTIONAL_ DATA section of _non-padded_ structs with:
                 - VAR instructions
                 - *ONE* terminal JMP instruction.
-            * Instruction _non-padded_ structs with:
+                
+            * An _OPTIONAL_ EXEC section of _non-padded_ structs with:
                 - An unsigned char opcode
                 - A 2-byte signed short representing the variable:
                     . Positive for X
                     . 0 for y
                     . Negative for Z
                 - A 2-byte unsigned short with payload data:
-                    For JNZ: the tag index 
+                    For JNZ: the tag index
+                    
+            * An optional EXTRA section. No special requirements are made
+              regarding this section, except that it must be big-endian and
+              safefly ignored by virtual machines.
+              
+    
+    Metadata Section
+    ----------------
+    
+    "Magic" (MAGI) is an arbitrary integer that identifies S bytecode. It
+    also prevents unsafe handling of strings in C code, as the first bytes
+    will serve as NUL terminators.
+    
+    Major (MA) and Minor (MI) version numbers identify the bytecode version.
+    As a norm, changes that break existing instruction semantics increment 
+    the major version number, while new instructions that can be safely
+    ignored (such as debugging instructions, VM signaling, NOP) or EXTRA
+    sections added at the end of the file.
+    
+    The INFO section contains the length of the DATA and EXEC sections. This
+    allows linear parsers to allocate memory and set logic boundaries between
+    DATA, EXEC and EXTRA.
+    
+    Instructions Section
+    --------------------
+    
+    The DATA and EXEC sections are technically a single section containing
+    bytecode opcodes and parameters. However, both sections have different
+    purposes:
+        
+        * The DATA section contains the state of a running program, and
+          it comes before the EXEC section so a linear VM can pre-load
+          (and jump to the appropiate instruction) before running the
+          program. This section can be of zero size.
+          The recommended layout of this section is to place only VAR
+          instructions and a final JMP instruction, although it is possible
+          to use any instruction here.
+        
+        * The EXEC section contains the program itself. Any instruction
+          may be used here, although it is strongly discouraged to use VAR
+          and JMP instructions (as those are not part of the S Language
+          itself and alter the behaviour of the program).
+        
+    Ancillary Section
+    -----------------
+    
+    Finally, the EXTRA section is not mandatory and may contain any data.
+    The purpose of this section is to add information about the program such
+    as original source code, author and even another program. This section
+    runs for the rest of the length of the file. The only two restrictions
+    are that it must be big-endian and must be safely ignored.
+    
+    Instructions
+    ============
+    
+    Instructions are comprised by an opcode and two parameters (the first
+    usually the variable, the second a positive value).
+    
+    Variables
+    ---------
+    Variables are signed short integers:
+        . Positive for X
+        . 0 for y
+        . Negative for Z
+    There's no need for complex bit twiddling to get the index for Z. It is
+    just the negative index (in two's complement).
+        
+    Instruction Table
+    -----------------
+    
+    +--------------+--------+-----------+--------------+---------+
+    | Instruction  | Opcode | Parameter | Value        | Virtual |
+    +--------------+--------+-----------+--------------+---------+
+    | Increment    |      1 | Variable  | 0 to 65535   | No      |
+    +--------------+--------+-----------+--------------+---------+
+    | Decrement    |      2 | Variable  | 0 to 65535   | No      |
+    +--------------+--------+-----------+--------------+---------+
+    | Jump if var  |      3 | Variable  | 0 to 65535   | No      |
+    | is non-zero  |        |           | 0 means exit |         |
+    +--------------+--------+-----------+--------------+---------+
+    |              |      4 | a = 1     | 1 to 65535   |         |
+    | Tag          |        |  ...      | 0 is NOP     | Yes     |
+    |              |        | e = 5     | Tag index    |         |
+    +--------------+--------+-----------+--------------+---------+
+    | Set variable |      5 | Variable  | 0 to 65535   | No      |
+    +--------------+--------+-----------+--------------+---------+
+    | Jump         |      6 |    --     | 0 to 65535   | No      |
+    +--------------+--------+-----------+--------------+---------+
+    
     """
 
     LAYOUT = ">IHH"
@@ -158,7 +270,7 @@ class BytecodeBase(object):
         if var == 0:
             return "y"
         elif var > 0:
-            return "x%d" % var
+            return "x%d" % var 
         else:
             return "z%d" % -var
             
@@ -170,10 +282,15 @@ class BytecodeBase(object):
         elif name == "x":
             return int(idx) & 0x7FFF
         else:
-            return -1 * (int(idx) & 0x7FFF)
+            return -(int(idx) & 0x7FFF)
             
     def variables(self):
         return self.vars.iteritems()
+        
+    @staticmethod
+    def __pack(instructions):
+        for op, var, val in instructions:
+            yield pack(BytecodeBase.INSTRUCTION, op, var, val & 0xffff)
         
 
 class Bytecode(BytecodeBase):
@@ -205,6 +322,9 @@ class Bytecode(BytecodeBase):
         return offset + calcsize(Bytecode.INSTRUCTION) * elems
 
     def from_file(self, f, ignore_state=True):
+        """ Reads binary bytecode files and reconstructs the virtual
+        representation
+        """
         LAYOUT_SIZE = calcsize(Bytecode.LAYOUT)
         INFO_SIZE = calcsize(Bytecode.INFO)
         
@@ -219,11 +339,6 @@ class Bytecode(BytecodeBase):
         offset = LAYOUT_SIZE + INFO_SIZE
         offset = self.__read_bulk(f, offset, variables)
         offset = self.__read_bulk(f, offset, instructions)
-        
-    @staticmethod
-    def __pack(instructions):
-        for op, var, val in instructions:
-            yield pack(Bytecode.INSTRUCTION, op, var, val & 0xffff)
             
     def __state_as_instructions(self):
         l = []
@@ -233,6 +348,7 @@ class Bytecode(BytecodeBase):
         return l
     
     def to_binary(self, save_state=False):
+        """ Binary representation for this bytecode """
         state = self.__state_as_instructions() if save_state else []
         INFO = pack(Bytecode.INFO, len(state), len(self.program))
         DATA = ''.join(Bytecode.__pack(state))
@@ -308,6 +424,7 @@ class Compiler(BytecodeBase):
                 return d.get('tag', None), v, d['var'], d.get('nxt', None)
 
     def from_file(self, f):
+        """ Compiles a file """
         ops = {REM: Compiler.DEC, ADD: Compiler.INC, JNZ: Compiler.JNZ}
         for line in f:
             tag, op, var, nxt = Compiler._extract(ops, line)
@@ -381,6 +498,7 @@ class VM(BytecodeBase):
     def reset(self):
         self.bytecode.state.reset()
         return self
+        
         
 # My other interpreter is less than 100 lines long.
 
