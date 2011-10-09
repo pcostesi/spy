@@ -53,19 +53,19 @@ class TagExistsException(Exception): pass
     
 def _validate_var_name(name):
     var = name[0].lower()
-    if var in ("x", "z") and name[1:].isdigit():
+    if var in "xz" and name[1:].isdigit():
         num = int(name[1:])
     elif var == "y" and name[1:] == "":
         num = 1
     else:
         num = 0
-    if var not in ("x", "z", "y") or num <= 0:
+    if var not in "xyz" or num <= 0:
         raise InvalidVariableNameException("Variable %s is invalid" % name)
 
 def _validate_tag_name(name):
     var = name[0].lower()
     num = int(name[1:]) if name[1:].isdigit() else 0
-    if var not in ("a", "b", "c", "d", "e") or num <= 0:
+    if var not in "abcde" or num <= 0:
         raise InvalidTagNameException("Variable %s is invalid" % name)
 
 
