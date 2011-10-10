@@ -164,7 +164,7 @@ class BytecodeBase(object):
                     . 0 for y
                     . Negative for Z
                 - A 2-byte unsigned short with payload data:
-                    For JNZ: the tag index
+                    For JNZ: an absolute index for the next instruction
                     
             * An optional EXTRA section. No special requirements are made
               regarding this section, except that it must be big-endian and
@@ -201,12 +201,14 @@ class BytecodeBase(object):
           program. This section can be of zero size.
           The recommended layout of this section is to place only VAR
           instructions and a final JMP instruction, although it is possible
-          to use any instruction here.
+          to use any instruction here (so using any instruction other than
+          VAR and JMP in this section are undefined behaviour).
         
         * The EXEC section contains the program itself. Any instruction
           may be used here, although it is strongly discouraged to use VAR
           and JMP instructions (as those are not part of the S Language
-          itself and alter the behaviour of the program).
+          itself and alter the behaviour of the program, and are left as
+          undefined behaviour).
         
     Ancillary Section
     -----------------
@@ -235,26 +237,29 @@ class BytecodeBase(object):
     Instruction Table
     -----------------
     
-    +--------------+--------+-----------+--------------+---------+
-    | Instruction  | Opcode | Parameter | Value        | Virtual |
-    +--------------+--------+-----------+--------------+---------+
-    | No operation |      0 |    --     |      --      | Yes     |
-    +--------------+--------+-----------+--------------+---------+
-    | Increment    |      1 | Variable  | 0 to 65535   | No      |
-    +--------------+--------+-----------+--------------+---------+
-    | Decrement    |      2 | Variable  | 0 to 65535   | No      |
-    +--------------+--------+-----------+--------------+---------+
-    | Jump if var  |      3 | Variable  | 0 to 65535   | No      |
-    | is non-zero  |        |           | 0 means exit |         |
-    +--------------+--------+-----------+--------------+---------+
-    |              |      4 | a = 1     | 0 to 65535   |         |
-    | Tag          |        |  ...      | 0 empty idx  | Yes     |
-    |              |        | e = 5     | Tag index    |         |
-    +--------------+--------+-----------+--------------+---------+
-    | Set variable |      5 | Variable  | 0 to 65535   | No      |
-    +--------------+--------+-----------+--------------+---------+
-    | Jump         |      6 |    --     | 0 to 65535   | No      |
-    +--------------+--------+-----------+--------------+---------+
+    +--------------+------+--------+-----------+--------------+---------+
+    | Instruction  | Word | Opcode | Parameter | Value        | Virtual |
+    +--------------+------+--------+-----------+--------------+---------+
+    | No operation | NOP  |      0 |    --     |      --      | Yes     |
+    +--------------+------+--------+-----------+--------------+---------+
+    | Increment    | INC  |      1 | Variable  | 0 to 65535   | No      |
+    +--------------+------+--------+-----------+--------------+---------+
+    | Decrement    | DEC  |      2 | Variable  | 0 to 65535   | No      |
+    +--------------+------+--------+-----------+--------------+---------+
+    | Jump if var  | JNZ  |      3 | Variable  | 0 to 65535   | No      |
+    | is non-zero  |      |        |           | 0 means exit |         |
+    +--------------+------+--------+-----------+--------------+---------+
+    |              | TAG  |      4 | a = 1     | 0 to 65535   |         |
+    | Tag          |      |        |  ...      | 0 empty idx  | Yes     |
+    |              |      |        | e = 5     | Tag index    |         |
+    +--------------+------+--------+-----------+--------------+---------+
+    | Set variable | VAR  |      5 | Variable  | 0 to 65535   | No      |
+    +--------------+------+--------+-----------+--------------+---------+
+    | Jump         | JMP  |      6 |    --     | 0 to 65535   | No      |
+    +--------------+------+--------+-----------+--------------+---------+
+
+    Both jumps use absolute addressing, starting at the beginning of the
+    EXEC section.
     
     """
 
