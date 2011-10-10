@@ -27,6 +27,7 @@
     pre { background: #000; color: #fff; padding: 15px;}
     hr { border: 0; width: 80%; border-bottom: 1px solid #aaa}
     .footer { text-align:center; padding-top:30px; font-style: italic; }
+    p {text-align: justify;}
   </style>
 </head>
 
@@ -65,7 +66,7 @@ Fig. 1: A minimal bytecode layout
     \_______________________/  \__________________________________________/
             Metadata                           Instructions
 </pre>
-
+<p>
         S bytecode is big-endian and has the following layout:
         <ul>
             <li> A Header _non-padded_ struct with:
@@ -108,7 +109,9 @@ Fig. 1: A minimal bytecode layout
               regarding this section, except that it must be big-endian and
               safefly ignored by virtual machines.
             </li>
-         </ul>     
+         </ul>   
+         
+         </p>  
 <h3>Metadata Section</h3>
 
 <p>"Magic" (MAGI) is an arbitrary integer that identifies S bytecode. It
@@ -150,11 +153,9 @@ as original source code, author and even another program. This section
 runs for the rest of the length of the file. The only two restrictions
 are that it must be big-endian and must be safely ignored.
 </p>
-<h2>Instructions<h2>
-<p>
-Instructions are comprised by an opcode and two parameters (the first
-usually the variable, the second a positive value).
-</p>
+<h2>Instructions</h2>
+<p>Instructions are comprised by an opcode and two parameters (the first
+usually the variable, the second a positive value).</p>
 <h3>Variables</h3>
 <p>Variables are signed short integers:<p>
 <ul>
