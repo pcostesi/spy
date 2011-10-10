@@ -238,6 +238,8 @@ class BytecodeBase(object):
     +--------------+--------+-----------+--------------+---------+
     | Instruction  | Opcode | Parameter | Value        | Virtual |
     +--------------+--------+-----------+--------------+---------+
+    | No operation |      0 |    --     |      --      | Yes     |
+    +--------------+--------+-----------+--------------+---------+
     | Increment    |      1 | Variable  | 0 to 65535   | No      |
     +--------------+--------+-----------+--------------+---------+
     | Decrement    |      2 | Variable  | 0 to 65535   | No      |
@@ -245,8 +247,8 @@ class BytecodeBase(object):
     | Jump if var  |      3 | Variable  | 0 to 65535   | No      |
     | is non-zero  |        |           | 0 means exit |         |
     +--------------+--------+-----------+--------------+---------+
-    |              |      4 | a = 1     | 1 to 65535   |         |
-    | Tag          |        |  ...      | 0 is NOP     | Yes     |
+    |              |      4 | a = 1     | 0 to 65535   |         |
+    | Tag          |        |  ...      | 0 empty idx  | Yes     |
     |              |        | e = 5     | Tag index    |         |
     +--------------+--------+-----------+--------------+---------+
     | Set variable |      5 | Variable  | 0 to 65535   | No      |
@@ -262,11 +264,23 @@ class BytecodeBase(object):
     MAJOR_VERSION = 0x0001 #u2
     MINOR_VERSION = 0x0001 #u2
     INFO = ">II" # number of DATA instructions, number of EXEC instructions
-    INC, DEC, JNZ, TAG, VAR, JMP = 1, 2, 3, 4, 5, 6
+    NOP, INC, DEC, JNZ, TAG, VAR, JMP = 0, 1, 2, 3, 4, 5, 6
     HEADER = pack(LAYOUT, MAGIC, MAJOR_VERSION, MINOR_VERSION)
     
     @staticmethod
     def _int_to_var(var):
+        """
+        Takes an integer and returns an encoded variable.
+
+        Variables
+        ---------
+        Variables are signed short integers:
+            . Positive for X
+            . 0 for y
+            . Negative for Z
+        There's no need for complex bit twiddling to get the index for Z. It is
+        just the negative index (in two's complement).
+        """
         if var == 0:
             return "y"
         elif var > 0:
@@ -276,6 +290,12 @@ class BytecodeBase(object):
             
     @staticmethod
     def _var_to_int(var):
+        """
+        Takes a string and returns an encoded integer.
+        If the input is an int, then it returns it masked with 0xFFFF.
+        """
+        if type(var) == int:
+            return var & 0xFFFF
         name, idx = var[0].lower(), var[1:]
         if name == "y":
             return 0
@@ -379,7 +399,8 @@ class Compiler(BytecodeBase):
             # however, adding tags is recommended for debugging and decompiling
             self.tags[name] = len(self.program) - 1 #tag this line.
             cname = Compiler._int_to_var((ord("a") + 1 - ord(name[0])))
-            self.program.append((Compiler.TAG, cname, int(name[1:])))
+            val = int(name[1:]) if name[1:] != "" else 0
+            self.program.append((Compiler.TAG, cname, val))
         else:
             raise TagExistsException("Tag %s already exists" % name)
         return self
@@ -395,9 +416,13 @@ class Compiler(BytecodeBase):
         return self
         
     def jmp(self, idx):
-        self.program.append((Compiler.JMP, "y", max(idx, 0)))
+        self.program.append((Compiler.JMP, 0, max(idx, 0)))
         return self
         
+    def nop(self):
+        self.program.append((Compiler.NOP, 0, 0)))
+        return self
+    
     def jnz(self, var, tag):
         _validate_var_name(var)
         _validate_tag_name(tag)
@@ -422,7 +447,7 @@ class Compiler(BytecodeBase):
             if statement:
                 d = statement.groupdict()
                 return d.get('tag', None), v, d['var'], d.get('nxt', None)
-        return None, None, None, None
+        return None, Compiler.NOP, None, None
 
     def from_file(self, f):
         """ Compiles a file """
@@ -431,7 +456,7 @@ class Compiler(BytecodeBase):
             tag, op, var, nxt = Compiler._extract(ops, line)
             if tag:
                 self.tag(tag)
-            if op is None:
+            if op == Compiler.NOP:
                 continue
             elif op == Compiler.INC:
                 self.inc(var)
@@ -473,6 +498,8 @@ class VM(BytecodeBase):
             self.bytecode.state.inc(var, val)
         elif op == VM.DEC:
             self.bytecode.state.dec(var, val)
+        elif op == VM.NOP:
+            pass
             
         self.bytecode.state.iptr += 1 
 
