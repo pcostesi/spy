@@ -69,30 +69,40 @@ Fig. 1: A minimal bytecode layout
         S bytecode is big-endian and has the following layout:
         <ul>
             <li> A Header _non-padded_ struct with:
+                <ul>
                 <li> A 4-byte unsigned integer containing the Magic</li>
                 <li> A 2-byte unsigned short major version</li>
                 <li> A 2-byte unsigned short</li>
+                </ul>
             </li>    
             <li> An Info _non-padded_ struct with:
+                <ul>
                 <li> Number of instructions in DATA section (for serialized data)
                   as a 4-byte unsigned integer.</li>
                 <li> Number of instructions in EXEC section (the actual program)
                   as a 4-byte unsigned integer.</li>
+                </ul>
             </li>      
             <li> An _OPTIONAL_ DATA section of _non-padded_ structs with:
+                <ul>
                 <li> VAR instructions</li>
                 <li> *ONE* terminal JMP instruction.</li>
+                </ul>
             </li>    
             <li> An _OPTIONAL_ EXEC section of _non-padded_ structs with:
+                <ul>
                 <li> An unsigned char opcode</li>
                 <li> A 2-byte signed short representing the variable:
+                <ul>
                     <li> Positive for X</li>
                     <li> 0 for y</li>
                     <li> Negative for Z</li>
+                </ul>
                     </li>
                 <li> A 2-byte unsigned short with payload data:
-                    <li>For JNZ: an absolute index for the next instruction</li>
-                    </li>
+                    <ul><li>For JNZ: an absolute index for the next instruction</li>
+                    </li></ul>
+                    </ul>
             </li>        
             <li> An optional EXTRA section. No special requirements are made
               regarding this section, except that it must be big-endian and
@@ -101,17 +111,17 @@ Fig. 1: A minimal bytecode layout
          </ul>     
 <h3>Metadata Section</h3>
 
-"Magic" (MAGI) is an arbitrary integer that identifies S bytecode. It
+<p>"Magic" (MAGI) is an arbitrary integer that identifies S bytecode. It
 also prevents unsafe handling of strings in C code, as the first bytes
-will serve as NUL terminators.<br>
-Major (MA) and Minor (MI) version numbers identify the bytecode version.
+will serve as NUL terminators.</p>
+<p>Major (MA) and Minor (MI) version numbers identify the bytecode version.
 As a norm, changes that break existing instruction semantics increment
 the major version number, while new instructions that can be safely
 ignored (such as debugging instructions, VM signaling, NOP) or EXTRA
-sections added at the end of the file.<br>
-The INFO section contains the length of the DATA and EXEC sections. This
+sections added at the end of the file.</p>
+<p>The INFO section contains the length of the DATA and EXEC sections. This
 allows linear parsers to allocate memory and set logic boundaries between
-DATA, EXEC and EXTRA.<br>
+DATA, EXEC and EXTRA.</p>
 
 <h3>Instructions Section</h3>
 The DATA and EXEC sections are technically a single section containing
@@ -133,25 +143,27 @@ itself and alter the behaviour of the program, and are left as
 undefined behaviour).</li>
 </ul>
 <h3>Ancillary Section</h3>
+<p>
 Finally, the EXTRA section is not mandatory and may contain any data.
 The purpose of this section is to add information about the program such
 as original source code, author and even another program. This section
 runs for the rest of the length of the file. The only two restrictions
 are that it must be big-endian and must be safely ignored.
-
+</p>
 <h2>Instructions<h2>
+<p>
 Instructions are comprised by an opcode and two parameters (the first
 usually the variable, the second a positive value).
-
+</p>
 <h3>Variables</h3>
-Variables are signed short integers:
+<p>Variables are signed short integers:<p>
 <ul>
 <li> Positive for X</li>
 <li> 0 for y</li>
 <li> Negative for Z</li>
 </ul>
-There's no need for complex bit twiddling to get the index for Z. It is
-just the negative index (in two's complement).
+<p>There's no need for complex bit twiddling to get the index for Z. It is
+just the negative index (in two's complement).</p>
 
 <h3>Instruction Table</h3>
 <table>
@@ -225,27 +237,32 @@ just the negative index (in two's complement).
         </tr>
     </tbody>
 </table>
+<p>
 Both jumps use absolute addressing, starting at the beginning of the
 EXEC section.
+</p>
 </p><h2>Dependencies</h2>
 <p>Python >=2.6</p>
 <h2>License</h2>
 <p>Copyright 2011 Pablo Alejandro Costesich <pcostesi@alu.itba.edu.ar>
-
+<br>
+<p>
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
 met:
-
-* Redistributions of source code must retain the above copyright
+</p>
+<ul>
+<li> Redistributions of source code must retain the above copyright
   notice, this list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above
+</li><li> Redistributions in binary form must reproduce the above
   copyright notice, this list of conditions and the following disclaimer
   in the documentation and/or other materials provided with the
   distribution.
-* Neither the name of the Dev Team nor the names of its
+</li><li> Neither the name of the Dev Team nor the names of its
   contributors may be used to endorse or promote products derived from
   this software without specific prior written permission.
-
+</li></ul>
+<p>
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
