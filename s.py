@@ -90,7 +90,7 @@ class State(object):
         
     def dec(self, var, val=1):
         _validate_var_name(var)
-	res = max(self.vars[var.lower()] - val, 0)
+	    res = max(self.vars[var.lower()] - val, 0)
         self.vars[var.lower()] = res  
         return res
         
