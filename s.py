@@ -442,9 +442,9 @@ class Compiler(BytecodeBase):
             op, var, val = instruction[:3]
             if op == Compiler.JNZ:
                 val = self.tags.get(val.lower(), 0)
-	    if op == Compiler.TAG:
-	      var = Compiler._int_to_var((ord("e") + 1 - ord(val[0])))
-	      val = int(val[1:]) if val[1:] != "" else 0
+            if op == Compiler.TAG:
+              var = Compiler._int_to_var((ord("e") + 1 - ord(val[0])))
+              val = int(val[1:]) if val[1:] != "" else 0
             yield op, Compiler._var_to_int(var), val
         
     def to_bytecode(self, state=None):
