@@ -37,11 +37,11 @@ from collections import defaultdict
 from struct import pack, unpack_from, calcsize
 import re
 
-TAG = r"\s*(\[\s*(?P<tag>[a-eA-E]\d+)\s*\])?\s*"
+TAG = r"\s*(\[(?P<tag>[a-eA-E]\d+)\]\s*)?"
 NXT = r"(?P<nxt>[a-eA-E]\d+)"
-VAR = r"([XZ]\d+)|Y"
-ADD = re.compile(TAG + "(?P<var>" + VAR + r")\s*<-\s*(" + VAR + r")\s*\+\s*1")
-REM = re.compile(TAG + "(?P<var>" + VAR + r")\s*<-\s*(" + VAR + r")\s*-\*1")
+VAR = r"([XZxz]\d+)|[Yy]"
+ADD = re.compile(TAG + r"(?P<var>" + VAR + r")\s*<-\s*(" + VAR + r")\s*\+\s*1")
+REM = re.compile(TAG + r"(?P<var>" + VAR + r")\s*<-\s*(" + VAR + r")\s*-\s*1")
 JNZ = re.compile(TAG + r"IF\s+(?P<var>" + VAR + r")\s*!=\s*0\s*GOTO\s*" + NXT)
 
 
@@ -74,8 +74,8 @@ class State(object):
     state manupulation (avoiding corruption).
     """
     
-    def __init__(self, y=0, *args, **kwargs):
-        self.iptr = 1
+    def __init__(self, iptr=1, *args, **kwargs):
+        self.iptr = iptr
         self.vars = defaultdict(lambda: 0)
         for i, v in enumerate(args):
             self.vars["x%d" % (i + 1)] = max(v, 0)
@@ -90,13 +90,13 @@ class State(object):
         
     def dec(self, var, val=1):
         _validate_var_name(var)
-        res = max(self.vars[var.lower()] - val, 0)
+	res = max(self.vars[var.lower()] - val, 0)
         self.vars[var.lower()] = res  
         return res
         
     def jnz(self, var):
         _validate_var_name(var)
-        return self.vars[var.lower()] == 0
+        return self.vars[var.lower()] != 0
         
     def __str__(self):
         pairs = ("\t- %s:\t%s" % (k, v) for k, v in 
@@ -317,6 +317,11 @@ class BytecodeBase(object):
         for op, var, val in instructions:
             yield pack(BytecodeBase.INSTRUCTION, op, var, val & 0xffff)
         
+    def __str__(self):
+        ops = "NOP INC DEC JNZ TAG VAR JMP".split()
+        return '\n'.join("%s %s %d" % (ops[i], Bytecode._int_to_var(j), k) for i, j,
+                k in self.program)
+           
 
 class Bytecode(BytecodeBase):
     """ This class represents parsed Bytecode and contains serialization 
@@ -387,7 +392,7 @@ class Bytecode(BytecodeBase):
             self.state.set(var, val)
         else:
             self.program.append((op, var, val))
-           
+
 
 class Compiler(BytecodeBase):
     def __init__(self, f=None):
@@ -402,10 +407,8 @@ class Compiler(BytecodeBase):
         if name not in self.tags:
             # tags are no-op opcodes, so we can ignore them
             # however, adding tags is recommended for debugging and decompiling
-            self.tags[name] = len(self.program) - 1 #tag this line.
-            cname = Compiler._int_to_var((ord("a") + 1 - ord(name[0])))
-            val = int(name[1:]) if name[1:] != "" else 0
-            self.program.append((Compiler.TAG, cname, val))
+            self.tags[name] = len(self.program) + 1 #tag this line.
+            self.program.append((Compiler.TAG, None, name))
         else:
             raise TagExistsException("Tag %s already exists" % name)
         return self
@@ -425,7 +428,7 @@ class Compiler(BytecodeBase):
         return self
         
     def nop(self):
-        self.program.append((Compiler.NOP, 0, 0)))
+        self.program.append((Compiler.NOP, 0, 0))
         return self
     
     def jnz(self, var, tag):
@@ -437,9 +440,11 @@ class Compiler(BytecodeBase):
     def __iter__(self):
         for instruction in self.program:
             op, var, val = instruction[:3]
-            
             if op == Compiler.JNZ:
-                val = self.tags.get(instruction[2], 0)
+                val = self.tags.get(val.lower(), 0)
+	    if op == Compiler.TAG:
+	      var = Compiler._int_to_var((ord("e") + 1 - ord(val[0])))
+	      val = int(val[1:]) if val[1:] != "" else 0
             yield op, Compiler._var_to_int(var), val
         
     def to_bytecode(self, state=None):
@@ -487,7 +492,6 @@ class VM(BytecodeBase):
         iptr = self.bytecode.state.iptr
         if iptr <= 0 or iptr > len(self.bytecode.program):
             return self.bytecode.state.get("y")
-        
         op, var, val = self.bytecode.program[iptr - 1]
         var = VM._int_to_var(var)
         if op == VM.JNZ:
@@ -540,7 +544,7 @@ if __name__ == "__main__":
     import sys
     
     if len(sys.argv) > 1:
-        state = State(sys.argv[1:])
+        state = State(1, *[int(i) for i in sys.argv[1:]])
     else:
         state = None
     
