@@ -90,7 +90,7 @@ class State(object):
         
     def dec(self, var, val=1):
         _validate_var_name(var)
-	    res = max(self.vars[var.lower()] - val, 0)
+        res = max(self.vars[var.lower()] - val, 0)
         self.vars[var.lower()] = res  
         return res
         
@@ -133,12 +133,12 @@ class BytecodeBase(object):
     ======
     
     Fig. 1: A minimal bytecode layout
-     ____ __ __    ____ ____    _ __ __     _ __ __    _ __ __     _ __ __
-    |____|__|__|  |____|____|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
-     MAGI MA MI    DATA EXEC     VAR 1        JMP       INST 1     INST N
-    \__________/  \_________/  \___________________/  \___________________/
-       HEADER         INFO          DATA Section           EXEC Section
-    \_______________________/  \__________________________________________/
+     ____ __ __    __ __    _ __ __     _ __ __    _ __ __     _ __ __
+    |____|__|__|  |__|__|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
+     MAGI MA MI    DA EX     VAR 1        JMP       INST 1     INST N
+    \__________/  \_____/  \___________________/  \___________________/
+       HEADER       INFO        DATA Section           EXEC Section
+    \___________________/  \__________________________________________/
             Metadata                           Instructions
          
         S bytecode is big-endian and has the following layout:
@@ -149,9 +149,9 @@ class BytecodeBase(object):
                 
             * An Info _non-padded_ struct with:
                 - Number of instructions in DATA section (for serialized data)
-                  as a 4-byte unsigned integer.
+                  as a 2-byte unsigned short.
                 - Number of instructions in EXEC section (the actual program)
-                  as a 4-byte unsigned integer.
+                  as a 2-byte unsigned short.
                   
             * An _OPTIONAL_ DATA section of _non-padded_ structs with:
                 - VAR instructions
@@ -266,9 +266,9 @@ class BytecodeBase(object):
     LAYOUT = ">IHH"
     INSTRUCTION = ">BhH" #instruction, variable, value
     MAGIC = 0x0005C0DE #u4
-    MAJOR_VERSION = 0x0001 #u2
+    MAJOR_VERSION = 0x0002 #u2
     MINOR_VERSION = 0x0001 #u2
-    INFO = ">II" # number of DATA instructions, number of EXEC instructions
+    INFO = ">HH" # number of DATA instructions, number of EXEC instructions
     NOP, INC, DEC, JNZ, TAG, VAR, JMP = 0, 1, 2, 3, 4, 5, 6
     HEADER = pack(LAYOUT, MAGIC, MAJOR_VERSION, MINOR_VERSION)
     
@@ -313,7 +313,7 @@ class BytecodeBase(object):
         return self.vars.iteritems()
         
     @staticmethod
-    def __pack(instructions):
+    def _pack(instructions):
         for op, var, val in instructions:
             yield pack(BytecodeBase.INSTRUCTION, op, var, val & 0xffff)
         
@@ -373,7 +373,7 @@ class Bytecode(BytecodeBase):
     def __state_as_instructions(self):
         l = []
         for var, val in self.state.variables():
-            l.append((Bytecode.VAR, Bytecode.__var_to_int(var), val))
+            l.append((Bytecode.VAR, Bytecode._var_to_int(var), val))
         l.append((Bytecode.JMP, 0, self.state.iptr))
         return l
     
@@ -381,14 +381,14 @@ class Bytecode(BytecodeBase):
         """ Binary representation for this bytecode """
         state = self.__state_as_instructions() if save_state else []
         INFO = pack(Bytecode.INFO, len(state), len(self.program))
-        DATA = ''.join(Bytecode.__pack(state))
-        EXEC = ''.join(Bytecode.__pack(self.program))
+        DATA = ''.join(Bytecode._pack(state))
+        EXEC = ''.join(Bytecode._pack(self.program))
         return Bytecode.HEADER + INFO + DATA + EXEC
         
     def _add(self, op, var, val):
         self.binary = None
         if op in (Bytecode.VAR, Bytecode.JMP):
-            var = Bytecode.__int_to_var(var)
+            var = BytecodeBase._int_to_var(var)
             self.state.set(var, val)
         else:
             self.program.append((op, var, val))
