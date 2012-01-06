@@ -169,6 +169,9 @@ class Instruction(object):
     def __str__(self):
         var = Instruction.num_to_var(self.var)
         return "<Instruction %d, %s, %s>" % (self.opcode, var, val)
+        
+    def __iter__(self):
+        return iter(tuple(self.opcode, self.var, self.val)
 
 
 class Bytecode(object):
@@ -255,10 +258,10 @@ class State(object):
         self.vars = defaultdict(lambda: 0)
         
         for i, v in enumerate(args):
-            self.vars[i + 1] = max(v & 0xffff, 0)
+            self.set(i + 1, v)
         
         for k, v in kwargs.iteritems():
-            self.vars[Instruction.var_to_num(k)] = max(v & 0xffff, 0)
+            self.set(k, v)
 
     def inc(self, var, val=1):
         key = Instruction.var_to_num(var)
@@ -283,6 +286,9 @@ class State(object):
         return data
         
     def set(self, var, val):
+        val = val & 0xffff
+        if val < 0:
+            val = 0
         self.vars[Instruction.var_to_num(var)] = val
         
     def get(self, var):
@@ -348,21 +354,22 @@ class VM(object):
         return None
         
     def __dispatch(self, state, instruction):
-        if instruction.opcode == Instruction.JNZ:
-            if state.get(instruction.var) != 0:
-                state.iptr = instruction.val
+        opcode, var, val = instruction
+        if opcode == Instruction.JNZ:
+            if state.get(var) != 0:
+                state.iptr = val
                 
-        elif instruction.opcode == Instruction.JMP:
-            state.iptr = instruction.val
+        elif opcode == Instruction.JMP:
+            state.iptr = val
             
-        elif instruction.opcode == Instruction.VAR:
-            state.set(instruction.var, instruction.val)
+        elif opcode == Instruction.VAR:
+            state.set(var, val)
         
-        elif instruction.opcode == Instruction.INC:
-            state.inc(instruction.var, instruction.val)
+        elif opcode == Instruction.INC:
+            state.inc(var, val)
         
-        elif instruction.opcode == Instruction.DEC:
-            state.dec(instruction.var, instruction.val)
+        elif opcode == Instruction.DEC:
+            state.dec(var, val)
 
     def execute(self, **x):
         value = None
