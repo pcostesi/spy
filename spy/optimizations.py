@@ -28,9 +28,19 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+from spy.core import Instruction
 
 # Add Dead Code Elimination
+def dce(program):
+    used_vars = [var for op, var, _ in program if op == Instruction.JNZ] + [0]
+    optimize = Instruction.INC, Instruction.DEC
+    return [i for i in program if not in optimize or i.var in used_vars]
 
 # Add Instruction Reordering
+    # DEC goes *before* INC, because:
+    # dec, dec, dec, inc does: 1 for input x < 4, x - 2 for x >= 4
+    # inc, dec, dec, dec does: 0 for input x < 3, x - 2 for x >= 3 
 
-# Add Instruction Translation/Compression
+# Add Instruction Compression
+    # between keypoints (TAGs and JNZs), compress all the INCs and DECs into
+    # single instructions

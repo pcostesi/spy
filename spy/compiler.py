@@ -28,16 +28,9 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-from abc import ABCMeta
 from spy.core import Instruction, Bytecode
 
-class Program(object):
-    pass
-
-
-class Optimization(object):
-    __metaclass__ = ABCMeta
-
-
 class Compiler(object):
-    pass
+    def __init__(self, optimization=0, padding=0)
+        self.optimization = optimization
+        self.padding = padding
