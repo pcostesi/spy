@@ -374,9 +374,11 @@ class VM(object):
         elif opcode == Instruction.DEC:
             state.dec(var, val)
 
-    def execute(self, **x):
+    def execute(self, *args, **kwargs):
         value = None
-        self.bytecode.state.update(**x)
+        for idx, val in enumerate(args):
+            self.bytecode.state.set("x%d" % (idx + 1), int(val))
+        self.bytecode.state.update(**kwargs)
         
         while value is None:
             value = self.step()
