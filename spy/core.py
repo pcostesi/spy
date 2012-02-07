@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#       Copyright 2011 Pablo Alejandro Costesich <pcostesi@alu.itba.edu.ar>
+#       Copyright 2011, 2012 Pablo A. Costesich <pcostesi@alu.itba.edu.ar>
 #
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
@@ -70,9 +70,9 @@ class Instruction(object):
         # have *many* instructions (that are little more than just a tuple).
     
     def __init__(self, opcode=NOP, var=0, val=0):
-        self.opcode = opcode 
-        self.var = var
-        self.val = val
+        self.__opcode = opcode
+        self.__var = self.var_to_num(var)
+        self.__val = int(val)
     
     @property
     def opcode(self):
@@ -80,7 +80,7 @@ class Instruction(object):
         
     @opcode.setter
     def opcode(self, value):
-        self.__opcode = value & 0xff
+        self.__opcode = value & 0xFF
         
     @property
     def var(self):
@@ -96,7 +96,7 @@ class Instruction(object):
         
     @val.setter
     def val(self, value):
-        self.__val = value & 0xffff
+        self.__val = value & 0xFFFF 
         
     @staticmethod
     def num_to_var(var):
@@ -122,18 +122,18 @@ class Instruction(object):
     @staticmethod
     def var_to_num(var):
         """
-        Takes a string and returns an encoded integer.
+        Takes a string and returns an encoded integer (in two's complement).
         If the input is an int, then it returns it masked with 0xFFFF.
         """
         if isinstance(var, int):
-            return var & 0xFFFF
+            return var & 0xFFFF if var >= 0 else -(var & 0xFFFF)
         name, idx = var[0], var[1:]
         if name == "y" or name == "Y":
             return 0
         elif name == "x" or name == "X":
-            return (int(idx) - 1) & 0x7FFF
+            return (int(idx) if idx != "" else 1) & 0xFFFF
         elif name == "z" or name == "Z":
-            return -((int(idx) - 1) & 0x7FFF)
+            return -(int(idx) & 0xFFFF if idx != "" else 1)
         else:
             raise InvalidVariableNameException()
     
@@ -168,10 +168,10 @@ class Instruction(object):
             
     def __str__(self):
         var = Instruction.num_to_var(self.var)
-        return "<Instruction %d, %s, %s>" % (self.opcode, var, val)
+        return "<Instruction %d, %s, %s>" % (self.opcode, var, self.val)
         
     def __iter__(self):
-        return iter(tuple(self.opcode, self.var, self.val)
+        return iter((self.opcode, self.var, self.val))
 
 
 class Bytecode(object):
@@ -187,7 +187,7 @@ class Bytecode(object):
     INFO_SIZE = calcsize(INFO)
             
     def __init__(self, instructions=None, state=None):
-        self.program = instructions or []
+        self.program = list(instructions) or []
         self.binary = None
         self.state = state or State()
         
@@ -242,6 +242,9 @@ class Bytecode(object):
         for i in chain(state, self.program):
             i.pack_into(buf, offset)
             offset += Instruction.SIZE
+            
+    def __str__(self):
+        return "\n".join(str(i) for i in self.program)
 
 
 class State(object):
@@ -320,7 +323,7 @@ class State(object):
         
     def __str__(self):
         items = self.vars.iteritems()
-        variables = (Instruction.num_to_var(k), v) for k, v in items)
+        variables = ((Instruction.num_to_var(k), v) for k, v in items)
         formatted = ("\t%s:\t%s" % pair for pair in variables)
         return ("State:\nPointer:\t%d\n" % self.iptr) + '\n'.join(formatted)
 
