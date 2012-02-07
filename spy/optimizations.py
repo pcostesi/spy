@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#       Copyright 2011 Pablo Alejandro Costesich <pcostesi@alu.itba.edu.ar>
+#       Copyright 2011, 2012 Pablo A. Costesich <pcostesi@alu.itba.edu.ar>
 #
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
@@ -32,9 +32,15 @@ from spy.core import Instruction
 
 # Add Dead Code Elimination
 def dce(program):
+    "Converts unused instructions into NOP"
     used_vars = [var for op, var, _ in program if op == Instruction.JNZ] + [0]
-    optimize = Instruction.INC, Instruction.DEC
-    return [i for i in program if not in optimize or i.var in used_vars]
+    program2 = []
+    for op, var, val in program:
+        if op in (Instruction.INC, Instruction.DEC, Instruction.JNZ):
+            if var not in used_vars:
+                op, var, val = Instruction.NOP, 0, 0
+        program2.append((op, var, val))
+    return program2
 
 # Add Instruction Reordering
     # DEC goes *before* INC, because:
@@ -44,3 +50,20 @@ def dce(program):
 # Add Instruction Compression
     # between keypoints (TAGs and JNZs), compress all the INCs and DECs into
     # single instructions
+    
+def register_relocation(program):
+    "Relocates vars to consecutive numbers"
+    xstack, zstack = [], []
+    program2 = []
+    for op, var, val in program:
+        if var != 0:
+            # reordering
+            stack = xstack if var > 0 else zstack
+            if var not in stack:
+                stack.append(var)
+            # rewriting
+            var = stack.index(var) + 1
+            if stack is zstack:
+                var = -var
+        program2.append((op, var, val))
+    return program2
