@@ -201,6 +201,57 @@ def parse(tokens):
 
 
 class Compiler(object):
-    def __init__(self, optimization=0, padding=0)
+    def __init__(self, f, optimization=0, padding=0):
+        self.f = f
         self.optimization = optimization
         self.padding = padding
+        self.program = []
+        
+    def _translate_jumps(self):
+        tags = {}
+        for idx, (op, var, val) in enumerate(self.program):
+            if op == Instruction.TAG:
+                tags[val.lower()] = idx + 1
+        for idx, (op, var, val) in enumerate(self.program):
+            if op == Instruction.JNZ:
+                self.program[idx] = op, var, tags.get(val.lower(), 0)
+        
+    def _translate_varnames(self):
+        for idx, (op, var, val) in enumerate(self.program):
+            if op in (Instruction.INC, Instruction.DEC, Instruction.JNZ):
+                self.program[idx] = op, Instruction.var_to_num(var), int(val)
+
+    def _translate_tags(self):
+        for idx, (op, var, val) in enumerate(self.program):
+            if op == Instruction.TAG:
+                var = ord(val[0].lower()) - ord('a')
+                val = 0 if len(val) == 1 else int(val[1:])
+                self.program[idx] = op, var, val
+
+    def tokenize(self, f=None):
+        if f is None:
+            f = self.f
+        return tokenize(self.f)
+
+    def parse(self, tokens=None):
+        if tokens is None:
+            tokens = self.tokenize()
+        return list(parse(tokens))
+
+    def tac(self):
+        self.program = self.parse()
+        self._translate_jumps()
+        self._translate_tags()
+        self._translate_varnames()
+        return self
+    
+    def compile(self):
+        self.tac()
+        self.program = dce(self.program)
+        self.program = register_relocation(self.program)
+        return Bytecode(Instruction(*i) for i in self.program)
+        
+    @classmethod
+    def compile_string(cls, code):
+        compiler = cls(StringIO(code))
+        return compiler.compile()
