@@ -29,6 +29,7 @@
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from spy.core import Instruction, Bytecode
+from spy.compiler import parse, tokenize
 
 def _extract_tags(instructions):    
     # we should have a better handling of jump ladders.
@@ -89,3 +90,6 @@ def decompile(bytecode):
     ast = rebuild_ast(bytecode)
     lines = rebuild_lines(ast)
     return '\n'.join(lines)
+    
+def format(f):
+    return '\n'.join(rebuild_lines(parse(tokenize(f))))
