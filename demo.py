@@ -31,10 +31,11 @@
 
 from spy.core import VM
 from spy.compiler import Compiler
+from spy.decompiler import decompile
 from StringIO import StringIO
 
 f = StringIO("""
-[A] if x1 != 0 goto E
+[B42] if x1 != 0 goto E
  z1 <- z1 + 1
  z1 <- z1 + 1
  z1 <- z1 + 1
@@ -45,14 +46,16 @@ f = StringIO("""
  z1 <- z1 + 1
  z1 <- z1 + 1
  z1 <- z1 + 1
-    [E] z10 <- z10 + 1
+    [E90] z10 <- z10 + 1
     y <- y + 1
     """)
     
-compiler = Compiler(f)
+compiler = Compiler(f, True)
 bytecode = compiler.compile()
 
 pcode = Compiler.compile_string("[A] y <- y + 300")
+
 vm = VM(bytecode)
-print vm.execute()
+print vm.execute(2)
 print VM(pcode).execute()
+print decompile(bytecode)
