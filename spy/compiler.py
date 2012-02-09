@@ -36,15 +36,16 @@ from StringIO import StringIO
 
 # This is a hand-crafted top-down parser (it's not recursive).
 # Although ad-hoc, it's good enough for this project (no external dependencies) 
-NOP, TAG, KWORD, IDENTIFIER, NUMBER, ARROW, NEQ, OP, LB, RB = range(10)
+NOP, TAG, KWORD, IDENTIFIER, NUMBER, ARROW, NEQ, OP, LB, RB, NL = range(11)
 
 _patterns = (
-    (re.compile(r"[ \t\f\n]"), NOP),
+    (re.compile(r"[ \t\f]"), NOP),
+    (re.compile(r"\n"), NL),
     (re.compile(r"\["), LB),
     (re.compile(r"\]"), RB),
     (re.compile(r"[a-eA-E]([1-9][0-9]*)?"), TAG),
     (re.compile(r"[yY]|([xXzZ]([1-9][0-9]*)?)"), IDENTIFIER),
-    (re.compile("#"), NOP),
+    (re.compile("#.*"), NOP),
     (re.compile("<-"), ARROW),
     (re.compile(r"\+|-"), OP),
     (re.compile("!="), NEQ),
@@ -71,8 +72,7 @@ def tokenize(input_file):
     for line in input_file.readlines():
         n_col, n_stop = 0, 0
         maxcol = len(line)
-        
-        while n_col < maxcol:
+        while n_col < maxcol and maxcol > 1:
             match, token = _match_some(_patterns, line, n_line, n_col)
             n_col, n_stop  = match.span()
             matchline = match.string[n_col : n_stop]
@@ -171,7 +171,7 @@ def _match_KWORD(matcher):
         .match(KWORD, test=is_kword("goto")) \
         .match(TAG)
     tag = matcher.symbol
-    matcher.match(LB, IDENTIFIER, KWORD, None)
+    matcher.match(NL, LB, IDENTIFIER, KWORD, None)
     return Instruction.JNZ, iden, tag
 
 def _match_IDEN(matcher):
@@ -182,7 +182,7 @@ def _match_IDEN(matcher):
     op = Instruction.INC if matcher.symbol == "+" else Instruction.DEC
     matcher.match(NUMBER, test=valid_number)
     num = int(matcher.symbol)
-    matcher.match(LB, IDENTIFIER, KWORD, None)
+    matcher.match(NL, LB, IDENTIFIER, KWORD, None)
     return op, iden, num
 
 def parse(tokens):
@@ -195,6 +195,8 @@ def parse(tokens):
             yield _match_KWORD(matcher)
         elif matcher.token == IDENTIFIER:
             yield _match_IDEN(matcher)
+        elif matcher.token == NL:
+            matcher.match(NL, LB, IDENTIFIER, KWORD, None)
         else:
             raise SyntaxError("Unexpected symbol '%s': line %d, column %d" %
                 (matcher.symbol,) + matcher.span)        
@@ -247,8 +249,9 @@ class Compiler(object):
     
     def compile(self):
         self.tac()
-        self.program = dce(self.program)
-        self.program = register_relocation(self.program)
+        if self.optimization:
+            self.program = dce(self.program)
+            self.program = register_relocation(self.program)
         return Bytecode(Instruction(*i) for i in self.program)
         
     @classmethod
