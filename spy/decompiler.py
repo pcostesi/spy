@@ -75,10 +75,10 @@ def rebuild_lines(ast):
     tag = ""
     for op, var, val in ast:
         if op == Instruction.TAG:
-            tag = "[" + val + "]"
+            tag = "[" + val.upper() + "]"
             continue
         elif op == Instruction.JNZ:
-            line = "if %s != 0 goto %s" % (var, val)
+            line = "if %s != 0 goto %s" % (var, val.upper())
         elif op == Instruction.INC:
             line = "%s <- %s + %s" % (var, var, val)
         elif op == Instruction.DEC:
