@@ -117,7 +117,7 @@ class Instruction(object):
         elif var > 0:
             return "x%d" % var 
         else:
-            return "z%d" % -var
+            return "z%d" % (var & 0xFFFF)
             
     @staticmethod
     def var_to_num(var):
@@ -243,6 +243,9 @@ class Bytecode(object):
             i.pack_into(buf, offset)
             offset += Instruction.SIZE
             
+    def __iter__(self):
+        return iter(self.program)
+    
     def __str__(self):
         return "\n".join(str(i) for i in self.program)
 
