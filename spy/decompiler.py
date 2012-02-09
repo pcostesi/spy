@@ -28,3 +28,64 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+from spy.core import Instruction, Bytecode
+
+def _extract_tags(instructions):    
+    # we should have a better handling of jump ladders.
+    # we could have many tags one after another, or separated by NOPs. Those
+    # may be handled as synonyms and optimize the output.
+    tags = {}
+    jumps = {}
+    exit = "e"
+    length = 0
+    
+    for idx, (op, var, val) in enumerate(instructions):
+        if op == Instruction.TAG:
+            name = chr(var + ord("a"))
+            if val:
+                name += str(val)
+            tags[idx + 1] = name
+        elif op == Instruction.JNZ:
+            jumps[idx + 1] = val
+        length = idx + 1
+    
+    for start, end in jumps.iteritems():
+        if start not in tags and 0 < end < length:
+            tags[start] = "a" + str(end)
+    
+    i = 0
+    while exit in tags.items():
+        i += 1
+        exit = "e" + str(i)
+    
+    return tags, exit
+
+def rebuild_ast(instructions):
+    tags, exit = _extract_tags(instructions)
+    for idx, (op, var, val) in enumerate(instructions):
+        if op == Instruction.TAG:
+            yield (op, None, tags[idx + 1])
+        elif op in (Instruction.INC, Instruction.DEC):
+            yield (op, Instruction.num_to_var(var), str(val))
+        elif op == Instruction.JNZ:
+            yield (op, Instruction.num_to_var(var), tags.get(idx + 1, exit))
+            
+def rebuild_lines(ast):
+    tag = ""
+    for op, var, val in ast:
+        if op == Instruction.TAG:
+            tag = "[" + val + "]"
+            continue
+        elif op == Instruction.JNZ:
+            line = "if %s != 0 goto %s" % (var, val)
+        elif op == Instruction.INC:
+            line = "%s <- %s + %s" % (var, var, val)
+        elif op == Instruction.DEC:
+            line = "%s <- %s - %s" % (var, var, val)
+        yield tag + "\t" + line
+        tag = ""
+        
+def decompile(bytecode):
+    ast = rebuild_ast(bytecode)
+    lines = rebuild_lines(ast)
+    return '\n'.join(lines)
