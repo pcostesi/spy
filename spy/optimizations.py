@@ -59,6 +59,7 @@ def register_relocation(program):
         if var != 0:
             # reordering
             stack = xstack if var > 0 else zstack
+            var = abs(var)
             if var not in stack:
                 stack.append(var)
             # rewriting
