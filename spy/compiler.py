@@ -83,7 +83,7 @@ def tokenize(input_file):
                 continue
             yield token, t_start, t_stop, matchline
         n_line += 1
-        
+
 
 class Matcher(object):
     "Stateful matcher that keeps the lookahead and matching info"
@@ -238,10 +238,13 @@ class Compiler(object):
     def parse(self, tokens=None):
         if tokens is None:
             tokens = self.tokenize()
-        return list(parse(tokens))
+        return parse(tokens)
 
     def tac(self):
-        self.program = self.parse()
+        # tac takes multiple iterations to output useful code.
+        # there is no need to optimize this, as programs are quite short and
+        # readabilty is a plus.
+        self.program = list(self.parse())
         self._translate_jumps()
         self._translate_tags()
         self._translate_varnames()

@@ -170,6 +170,10 @@ class Instruction(object):
         var = Instruction.num_to_var(self.var)
         return "<Instruction %d, %s, %s>" % (self.opcode, var, self.val)
         
+    def __repr__(self):
+        var = Instruction.num_to_var(self.var)
+        return "Instruction(%d, %s, %s)" % (self.opcode, var, self.val)
+        
     def __iter__(self):
         return iter((self.opcode, self.var, self.val))
 
@@ -248,6 +252,9 @@ class Bytecode(object):
     
     def __str__(self):
         return "\n".join(str(i) for i in self.program)
+
+    def __repr__(self):
+        return "Bytecode([%s])" % ", ".join(repr(i) for i in self.program)
 
 
 class State(object):
