@@ -3,7 +3,7 @@ from setuptools import Command, setup
 
 setup(
     name='spy',
-    version='0.3-dev',
+    version='0.3.1-dev',
     url='http://github.com/pcostesi/spy/',
     license='BSD',
     author='Pablo Alejandro Costesich',
