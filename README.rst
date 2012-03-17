@@ -1,4 +1,4 @@
-[![Build Status](https://secure.travis-ci.org/pcostesi/spy.png?branch=master)](http://travis-ci.org/pcostesi/spy)
+.. image:: https://secure.travis-ci.org/pcostesi/spy.png?branch=master
 
 
 
@@ -22,29 +22,30 @@ S bytecode has been designed with portability and ease of implementation even in
 Layout
 ------
 
-Fig. 1: A minimal bytecode layout
-     ____ __ __    ____ ____    _ __ __     _ __ __    _ __ __     _ __ __
-    |____|__|__|  |____|____|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
-     MAGI MA MI    DATA EXEC     VAR 1        JMP       INST 1     INST N
-    \__________/  \_________/  \___________________/  \___________________/
-       HEADER         INFO          DATA Section           EXEC Section
-    \_______________________/  \__________________________________________/
-            Metadata                           Instructions
+::
+  Fig. 1: A minimal bytecode layout
+       ____ __ __    ____ ____    _ __ __     _ __ __    _ __ __     _ __ __
+      |____|__|__|  |____|____|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
+       MAGI MA MI    DATA EXEC     VAR 1        JMP       INST 1     INST N
+      \__________/  \_________/  \___________________/  \___________________/
+         HEADER         INFO          DATA Section           EXEC Section
+      \_______________________/  \__________________________________________/
+              Metadata                           Instructions
 
 
 S bytecode is big-endian and has the following layout:
 
-  - A Header _non-padded_ struct with:
+  - A Header non-padded struct with:
       - A 4-byte unsigned integer containing the Magic
       - A 2-byte unsigned short major version
       - A 2-byte unsigned short (minor version)
-  - An Info _non-padded_ struct with:
+  - An Info non-padded struct with:
       - Number of instructions in DATA section (for serialized data) as a 4-byte unsigned integer.
       - Number of instructions in EXEC section (the actual program) as a 4-byte unsigned integer.
-  - An _OPTIONAL_ DATA section of _non-padded_ structs with:
+  - An _OPTIONAL_ DATA section of non-padded structs with:
     - VAR instructions
     - *ONE* terminal JMP instruction.
-  - An _OPTIONAL_ EXEC section of _non-padded_ structs with:
+  - An _OPTIONAL_ EXEC section of non-padded structs with:
     - An unsigned char opcode
     - A 2-byte signed short representing the variable:
       - Positive for X
@@ -100,24 +101,24 @@ Instruction Table
 -----------------
 
 +--------------------+------+--------+-----------+-----------------------------+---------+
-| Instruction        | Word	| Opcode | Parameter | Value                       | Virtual |
+| Instruction        | Word | Opcode | Parameter | Value                       | Virtual |
++====================+======+========+===========+=============================+=========+
+| No operation       | NOP  | 0      |           |                             | Yes     |
 +--------------------+------+--------+-----------+-----------------------------+---------+
-| No operation       | NOP	| 0      |           |                             | Yes     |
+| Increment variable | INC  | 1      | Variable  | Unsigned Short (0 to 65535) | No      |
 +--------------------+------+--------+-----------+-----------------------------+---------+
-| Increment variable | INC	| 1      | Variable  | Unsigned Short (0 to 65535) | No      |
+| Decrement variable | DEC  | 2      | Variable  | Unsigned Short (0 to 65535) | No      |
 +--------------------+------+--------+-----------+-----------------------------+---------+
-| Decrement variable | DEC	| 2      | Variable  | Unsigned Short (0 to 65535) | No      |
+| Jump if variable   | JNZ  | 3      | Variable  | Instruction offset as an    | No      |
+| is not zero        |      |        |           |                             |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
-| Jump if variable   | JNZ  | 3      | Variable	 | Instruction offset as an    | No      |
-| is not zero	       |      |        |           |                             |         |
-+--------------------+------+--------+-----------+-----------------------------+---------+
-| Tag                | TAG	| 4	     | 1 for A,  | Unsigned Short (0 to 65535) | Yes     |
+| Tag                | TAG  | 4      | 1 for A,  | Unsigned Short (0 to 65535) | Yes     |
 |                    |      |        | 2 for B,  | 0 means halt.               |         |
 |                    |      |        | ...,      |                             |         |
-|                    |      |        | 5 for E	 | Unsigned Short (0 to 65535) |         |
+|                    |      |        | 5 for E   | Unsigned Short (0 to 65535) |         |
 |                    |      |        |           | indicating the tag index.   |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
-| Set Variable       | VAR	| 5      | Variable  | Unsigned Short (0 to 65535) | No      |
+| Set Variable       | VAR  | 5      | Variable  | Unsigned Short (0 to 65535) | No      |
 |                    |      |        |           | as value.                   |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
 | Unconditional Jump | JMP  | 6      |           | Program Counter as Unsigned | No      |
