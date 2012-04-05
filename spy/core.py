@@ -39,6 +39,7 @@ from struct import pack, pack_into, unpack, unpack_from, calcsize
 from itertools import chain
 from collections import defaultdict
 import os
+import inspect
 
 class InvalidVariableNameException(Exception): 
     """Signals a variable is non-conformant to [xXzZ][1-9][0-9]*|y|Y"""
@@ -338,6 +339,17 @@ class State(object):
         return ("State:\nPointer:\t%d\n" % self.iptr) + '\n'.join(formatted)
 
 
+
+def register_opcode(opcode, self=None):
+    def decorator(f):
+        setattr(f, "_is_opcode", True)
+        setattr(f, "_opcode", opcode)
+        if self:
+            self.opcodes[opcode] = f
+        return f
+    return decorator
+    
+    
 class VM(object):
 
     def __init__(self, bytecode=None, state=None, debugger=None):
@@ -345,6 +357,10 @@ class VM(object):
         if state:
             self.bytecode.state = state
         self.debugger = debugger
+        self.opcodes = {}
+        for name, value in inspect.getmembers(self):
+            if inspect.ismethod(value) and getattr(value, '_is_opcode', False):
+                self.opcodes[getattr(value, '_opcode')] = value
 
     def step(self):
         bytecode = self.bytecode
@@ -355,7 +371,7 @@ class VM(object):
         
         iptr = state.iptr
         if iptr <= 0 or iptr > len(bytecode.program):
-            return state.get("y")
+            return state.get(0)
         
         instruction = bytecode.program[iptr - 1]
         
@@ -363,26 +379,33 @@ class VM(object):
             debugger.step(vm, instruction, state)
     
         state.iptr += 1
-        self.__dispatch(state, instruction)
-        return None
-        
-    def __dispatch(self, state, instruction):
         opcode, var, val = instruction
-        if opcode == Instruction.JNZ:
-            if state.get(var) != 0:
-                state.iptr = val
-                
-        elif opcode == Instruction.JMP:
+        try:
+            self.opcodes[opcode](state, var, val)
+        except KeyError:
+            pass
+        return None
+    
+    @register_opcode(Instruction.JNZ)
+    def on_jnz(self, state, var, val):
+        if state.get(var) != 0:
             state.iptr = val
             
-        elif opcode == Instruction.VAR:
+    @register_opcode(Instruction.JMP)
+    def on_jmp(self, state, var, val):
+        state.iptr = val
+            
+    @register_opcode(Instruction.VAR)
+    def on_var(self, state, var, val):
             state.set(var, val)
         
-        elif opcode == Instruction.INC:
-            state.inc(var, val)
+    @register_opcode(Instruction.INC)
+    def on_inc(self, state, var, val):
+        state.inc(var, val)
         
-        elif opcode == Instruction.DEC:
-            state.dec(var, val)
+    @register_opcode(Instruction.DEC)
+    def on_dec(self, state, var, val):
+        state.dec(var, val)
 
     def execute(self, *args, **kwargs):
         value = None
