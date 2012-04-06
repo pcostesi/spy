@@ -1,9 +1,9 @@
-
+#!/usr/bin/env python
 from setuptools import Command, setup
 
 setup(
     name='spy',
-    version='0.3.1-dev',
+    version='0.3.2',
     url='http://github.com/pcostesi/spy/',
     license='BSD',
     author='Pablo Alejandro Costesich',
