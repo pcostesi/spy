@@ -33,8 +33,8 @@ from spy.core import VM
 from spy.compiler import Compiler
 import sys
 
-compiler = Compiler(sys.stdin)
+compiler = Compiler(open(sys.argv[1], "rb"))
 bytecode = compiler.compile()
 
 vm = VM(bytecode)
-print vm.execute(*sys.argv[1:])
+print vm.execute(*sys.argv[2:])
