@@ -29,7 +29,7 @@
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-from spy.core import VM
+from spy.core import VM, register_opcode
 from spy.compiler import Compiler
 from spy.decompiler import decompile
 from StringIO import StringIO
@@ -56,6 +56,11 @@ bytecode = compiler.compile()
 pcode = Compiler.compile_string("[A] y <- y + 300")
 
 vm = VM(bytecode)
+
+@register_opcode(0, vm)
+def op_nop(self, var, val):
+    print "NOP"
+    
 print vm.execute(2)
 print VM(pcode).execute()
 print decompile(bytecode)
