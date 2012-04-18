@@ -60,8 +60,10 @@ def _match_some(regexes, line, n_line, n_col):
         match = regex.match(line, n_col)
         if match is not None:
             return match, token
-    error = "At line %d, column %d" % (n_line, n_col)
+    error = "No rules to match input (does not conform this grammar) \n"
+    error += "At line %d, column %d" % (n_line, n_col)
     error += "\n\t%s" % line
+    error += "\n" if line[-1] != "\n" else ""
     error += "\t" + "_" * (n_col - 1) + "/\\" + "_" * (len(line) - n_col - 2)
     raise SyntaxError(error)
 
