@@ -23,14 +23,15 @@ Layout
 ------
 
 ::
+
   Fig. 1: A minimal bytecode layout
-       ____ __ __    ____ ____    _ __ __     _ __ __    _ __ __     _ __ __
-      |____|__|__|  |____|____|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
-       MAGI MA MI    DATA EXEC     VAR 1        JMP       INST 1     INST N
-      \__________/  \_________/  \___________________/  \___________________/
-         HEADER         INFO          DATA Section           EXEC Section
-      \_______________________/  \__________________________________________/
-              Metadata                           Instructions
+   ____ __ __    ____ ____    _ __ __     _ __ __    _ __ __     _ __ __
+  |____|__|__|  |____|____|  |_|__|__|...|_|__|__|  |_|__|__|...|_|__|__|
+   MAGI MA MI    DATA EXEC     VAR 1        JMP       INST 1     INST N
+  \__________/  \_________/  \___________________/  \___________________/
+     HEADER         INFO          DATA Section           EXEC Section
+  \_______________________/  \__________________________________________/
+          Metadata                           Instructions
 
 
 S bytecode is big-endian and has the following layout:
