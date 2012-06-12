@@ -74,7 +74,7 @@ class Instruction(object):
         self.__opcode = opcode
         self.__var = self.var_to_num(var)
         self.__val = int(val)
-    
+
     @property
     def opcode(self):
         return self.__opcode
@@ -193,7 +193,6 @@ class Bytecode(object):
             
     def __init__(self, instructions=None, state=None):
         self.program = list(instructions) or []
-        self.binary = None
         self.state = state or State()
         
     @classmethod
@@ -288,11 +287,6 @@ class State(object):
         self.vars[key] = res  
         return res
         
-    def __str__(self):
-        variables = sorted(self.vars.iteritems())
-        pairs = ((Instruction.num_to_var(k), v) for k, v in variables)
-        return "State:\n" + '\n'.join("\t%s:\t%s" % (k, v) for k, v in pairs)
-        
     def to_dict(self):
         variables = self.vars.iteritems()
         data = dict((Instruction.num_to_var(k), v) for k, v in variables)
@@ -334,7 +328,7 @@ class State(object):
         
     def __str__(self):
         items = self.vars.iteritems()
-        variables = ((Instruction.num_to_var(k), v) for k, v in items)
+        variables = sorted((Instruction.num_to_var(k), v) for k, v in items)
         formatted = ("\t%s:\t%s" % pair for pair in variables)
         return ("State:\nPointer:\t%d\n" % self.iptr) + '\n'.join(formatted)
 
@@ -397,7 +391,7 @@ class VM(object):
             
     @register_opcode(Instruction.VAR)
     def on_var(self, state, var, val):
-            state.set(var, val)
+        state.set(var, val)
         
     @register_opcode(Instruction.INC)
     def on_inc(self, state, var, val):
