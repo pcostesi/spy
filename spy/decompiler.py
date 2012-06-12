@@ -31,6 +31,24 @@
 from spy.core import Instruction, Bytecode
 from spy.compiler import parse, tokenize
 
+
+def ffs(n):
+    x = 1
+    while n % 2 == 0 and n > 0:
+        n /= 2
+        x += 1
+    return x
+        
+# BEGIN HACK (just because we need speed)
+try:
+    import ctypes
+    libc = ctypes.cdll.LoadLibrary('libc.so.6')
+    ffs = libc.ffs
+except:
+    pass
+# END HACK
+
+
 def _extract_tags(instructions):    
     # we should have a better handling of jump ladders.
     # we could have many tags one after another, or separated by NOPs. Those
@@ -83,13 +101,43 @@ def rebuild_lines(ast):
             line = "%s <- %s + %s" % (var, var, val)
         elif op == Instruction.DEC:
             line = "%s <- %s - %s" % (var, var, val)
+        elif op == Instruction.NOP:
+            line = "%s <- %s" % (var, var)
         yield tag + "\t" + line
         tag = ""
         
-def decompile(bytecode):
-    ast = rebuild_ast(bytecode)
+def decompile(bytecode, ast=None):
+    if ast is None:
+        ast = rebuild_ast(bytecode)
     lines = rebuild_lines(ast)
     return '\n'.join(lines)
+
+def ipair(n):
+    n += 1
+    a = ffs(n) - 1
+    b = (n / (2 ** a) - 1) / 2
+    return a, b
     
+def rebuild_godel_ast(l):
+    tag = lambda x: "abcde"[(x - 1) % 5] + str(x / 5 + 1)
+    for n in l:
+        a, x = ipair(n)
+        b, c = ipair(x)
+        var = "x" if c % 2 == 1 else "z"
+        var = "y" if c == 0 else var + str((c + 1) / 2) 
+        if a != 0:
+            yield (Instruction.TAG, None, tag(a))
+        if b == 0:
+            yield (Instruction.NOP, var, None)
+        elif b == 1:
+            yield (Instruction.INC, var, 1)
+        elif b == 2:
+            yield (Instruction.DEC, var, 1)
+        else:
+            yield (Instruction.JNZ, var, tag(c))
+        
+def decompile_godel_exponents(l):
+    return decompile(None, rebuild_godel_ast(l))
+        
 def format(f):
     return '\n'.join(rebuild_lines(parse(tokenize(f))))
