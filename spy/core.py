@@ -63,9 +63,8 @@ class TagExistsException(Exception):
 
 
 class Instruction(object):
-    LAYOUT = ">BhH" #instruction, variable, value
+    LAYOUT = ">BHH" #instruction, variable, value
     SIZE = calcsize(LAYOUT)
-    NOP, INC, DEC, JNZ, TAG, VAR, JMP = range(7)
     __slots__ = ("__weakref__", "__opcode", "__var", "__val")
         # You may have one Bytecode, one VM, one State... but you will probably
         # have *many* instructions (that are little more than just a tuple).
@@ -106,19 +105,18 @@ class Instruction(object):
 
         Variables
         ---------
-        Variables are signed short integers:
-            . Positive for X
+        Variables are unsigned short integers:
+            . 1 << 15 | var for X
             . 0 for y
-            . Negative for Z
-        There's no need for complex bit twiddling to get the index for Z. It is
-        just the negative index (in two's complement).
+            . ~(1 << 15) & var for Z
+            . (1 << 15) RESERVED
         """
         if var == 0:
             return "y"
-        elif var > 0:
-            return "x%d" % var 
+        elif var & (1 << 15):
+            return "z%d" % (var & 0x7FFF)
         else:
-            return "z%d" % (var & 0xFFFF)
+            return "x%d" % (var & 0x7FFF)
             
     @staticmethod
     def var_to_num(var):
@@ -127,14 +125,14 @@ class Instruction(object):
         If the input is an int, then it returns it masked with 0xFFFF.
         """
         if isinstance(var, int):
-            return var & 0xFFFF if var >= 0 else -(var & 0xFFFF)
+            return var & 0xFFFF
         name, idx = var[0], var[1:]
         if name == "y" or name == "Y":
             return 0
         elif name == "x" or name == "X":
-            return (int(idx) if idx != "" else 1) & 0xFFFF
+            return (int(idx) & 0x7FFF if idx != "" else 1)
         elif name == "z" or name == "Z":
-            return -(int(idx) & 0xFFFF if idx != "" else 1)
+            return (1 << 15) | (int(idx) & 0x7FFF if idx != "" else 1)
         else:
             raise InvalidVariableNameException()
     

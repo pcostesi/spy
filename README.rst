@@ -48,10 +48,11 @@ S bytecode is big-endian and has the following layout:
     - *ONE* terminal JMP instruction.
   - An _OPTIONAL_ EXEC section of non-padded structs with:
     - An unsigned char opcode
-    - A 2-byte signed short representing the variable:
-      - Positive for X
+    - A 2-byte unsigned short representing the variable:
+      - (1 << 15) NOT set for X
       - 0 for y
-      - Negative for Z
+      - (1 << 15) set for Z
+      - 1 << 15 RESERVED (PC would be nice, maybe stack)
     - A 2-byte unsigned short with payload data:
       - For JNZ: an absolute index for the next instruction
   - An optional EXTRA section. No special requirements are made regarding this section, except that it must be big-endian and safefly ignored by virtual machines.
@@ -89,13 +90,11 @@ Instructions are comprised by an opcode and two parameters (the first usually th
 Variables
 ---------
 
-Variables are signed short integers:
+Variables are unsigned short integers:
 
-  - Positive for X
+  - ~(1 << 15) & (var & 0x7fff) for X
   - 0 for y
-  - Negative for Z
-
-There's no need for complex bit twiddling to get the index for Z. It is just the negative index (in two's complement).
+  - (1 << 15) | (var & 0x7fff) for Z
 
 
 Instruction Table
@@ -111,7 +110,7 @@ Instruction Table
 | Decrement variable | DEC  | 2      | Variable  | Unsigned Short (0 to 65535) | No      |
 +--------------------+------+--------+-----------+-----------------------------+---------+
 | Jump if variable   | JNZ  | 3      | Variable  | Instruction offset as an    | No      |
-| is not zero        |      |        |           |                             |         |
+| is not zero        |      |        |           | absolute value from EXEC.   |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
 | Tag                | TAG  | 4      | 1 for A,  | Unsigned Short (0 to 65535) | Yes     |
 |                    |      |        | 2 for B,  | 0 means halt.               |         |
@@ -123,7 +122,7 @@ Instruction Table
 |                    |      |        |           | as value.                   |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
 | Unconditional Jump | JMP  | 6      |           | Program Counter as Unsigned | No      |
-|                    |      |        |           | Short (0 to 65535)          |         |
+|                    |      |        |           | Short. (0 to 65535)         |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
 
 
