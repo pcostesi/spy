@@ -65,6 +65,6 @@ def register_relocation(program):
             # rewriting
             var = stack.index(var) + 1
             if stack is zstack:
-                var = -var
+                var = (1 << 15) | var
         program2.append((op, var, val))
     return program2

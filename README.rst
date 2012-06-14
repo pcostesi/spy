@@ -124,6 +124,9 @@ Instruction Table
 | Unconditional Jump | JMP  | 6      |           | Program Counter as Unsigned | No      |
 |                    |      |        |           | Short. (0 to 65535)         |         |
 +--------------------+------+--------+-----------+-----------------------------+---------+
+| Copy variable      | CPY  | 7      |           | Copy a variable value into  | No      |
+|                    |      |        |           | another variable.           |         |
++--------------------+------+--------+-----------+-----------------------------+---------+
 
 
 Both jumps use absolute addressing, starting at the beginning of the EXEC section.

@@ -65,6 +65,7 @@ class TagExistsException(Exception):
 class Instruction(object):
     LAYOUT = ">BHH" #instruction, variable, value
     SIZE = calcsize(LAYOUT)
+    NOP, INC, DEC, JNZ, TAG, VAR, JMP, CPY = range(8)
     __slots__ = ("__weakref__", "__opcode", "__var", "__val")
         # You may have one Bytecode, one VM, one State... but you will probably
         # have *many* instructions (that are little more than just a tuple).
@@ -182,8 +183,8 @@ class Bytecode(object):
 
     LAYOUT = ">IHH"
     MAGIC = 0x0005C0DE #u4
-    MAJOR_VERSION = 0x0002 #u2
-    MINOR_VERSION = 0x0001 #u2
+    MAJOR_VERSION = 0x0003 #u2
+    MINOR_VERSION = 0x0000 #u2
     INFO = ">HH" # number of DATA instructions, number of EXEC instructions
     HEADER = pack(LAYOUT, MAGIC, MAJOR_VERSION, MINOR_VERSION)
     LAYOUT_SIZE = calcsize(LAYOUT)
@@ -297,6 +298,10 @@ class State(object):
             val = 0
         self.vars[Instruction.var_to_num(var)] = val
         
+    def clone(self, var, var2):
+        val = self.vars[Instruction.var_to_num(var2)]
+        self.vars[Instruction.var_to_num(var)] = val
+        
     def get(self, var):
         return self.vars[Instruction.var_to_num(var)]
         
@@ -398,7 +403,15 @@ class VM(object):
     @register_opcode(Instruction.DEC)
     def on_dec(self, state, var, val):
         state.dec(var, val)
+        
+    @register_opcode(Instruction.VAR)
+    def on_var(self, state, var, val):
+        state.set(var, val)
 
+    @register_opcode(Instruction.CPY)
+    def on_cpy(self, state, var, val):
+        state.clone(var, val)
+        
     def execute(self, *args, **kwargs):
         value = None
         for idx, val in enumerate(args):
