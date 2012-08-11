@@ -165,14 +165,19 @@ def _match_LB(matcher):
     return Instruction.TAG, 0, tag
 
 def _match_KWORD(matcher):
-    if matcher.symbol != "if":
-        raise SyntaxError("Expected if, got %s" % matcher.symbol)
+    if matcher.symbol == "goto":
+        matcher.match(TAG)
+        tag = matcher.symbol
+        matcher.match(NL, LB, IDENTIFIER, KWORD, None)
+        return Instruction.JMP, 0, tag
+    elif matcher.symbol != "if":
+        raise SyntaxError("Expected 'if' or 'goto', got %s" % matcher.symbol)
     matcher.match(IDENTIFIER)
     iden = matcher.symbol
-    matcher.match(NEQ) \
-        .match(NUMBER, test=equals("0")) \
-        .match(KWORD, test=is_kword("goto")) \
-        .match(TAG)
+    matcher.match(NEQ)
+    matcher.match(NUMBER, test=equals("0"))
+    matcher.match(KWORD, test=is_kword("goto"))
+    matcher.match(TAG)
     tag = matcher.symbol
     matcher.match(NL, LB, IDENTIFIER, KWORD, None)
     return Instruction.JNZ, iden, tag
@@ -253,12 +258,12 @@ class Compiler(object):
             if op == Instruction.TAG:
                 tags[val.lower()] = idx + 1
         for idx, (op, var, val) in enumerate(self.program):
-            if op == Instruction.JNZ:
+            if op in (Instruction.JNZ, Instruction.JMP):
                 self.program[idx] = op, var, tags.get(val.lower(), 0)
         
     def _translate_varnames(self):
         for idx, (op, var, val) in enumerate(self.program):
-            if op in (Instruction.JNZ, Instruction.INC, Instruction.DEC, Instruction.VAR):
+            if op not in (Instruction.TAG, Instruction.CPY):
                 self.program[idx] = op, Instruction.var_to_num(var), int(val)
             elif op == Instruction.CPY:
                 var1 = Instruction.var_to_num(var)

@@ -101,7 +101,7 @@ def rebuild_lines(ast):
             line = "%s <- %s + %s" % (var, var, val)
         elif op == Instruction.DEC:
             line = "%s <- %s - %s" % (var, var, val)
-        elif op == Instruction.NOP:
+        elif op in (Instruction.NOP, Instruction.VAR, Instruction.CPY):
             line = "%s <- %s" % (var, var)
         yield tag + "\t" + line
         tag = ""

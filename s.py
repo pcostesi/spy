@@ -35,6 +35,5 @@ import sys
 
 compiler = Compiler(open(sys.argv[1], "rb"))
 bytecode = compiler.compile()
-
 vm = VM(bytecode)
 print vm.execute(*sys.argv[2:])
