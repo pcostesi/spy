@@ -10,6 +10,10 @@ Spy is an implementation of the language presented in Computability, Complexity 
 I started this project in order to learn about compilers, parsers and languages, as well as virtual machines and optimizations. As such, this project is not intended for production and is more like a research project.
 
 
+Donate
+======
+
+You can donate bitcoins to the following address: 17wcQ6JNXrKjYVEvstgAkq1yV5eY28E7Pp
 
 
 About the Bytecode
